@@ -1,6 +1,6 @@
 ---
-title: "R-Wizardry Final Project Carly Mattis"
-author: "Carly Mattis"
+title: "LHB_Shape_Analysis_Carly_Sullivan"
+author: "Carly Sullivan"
 date: "11/06/2019"
 output: html_document
 editor_options: 
