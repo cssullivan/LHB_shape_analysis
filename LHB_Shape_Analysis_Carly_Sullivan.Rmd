@@ -1,0 +1,258 @@
+---
+title: "R-Wizardry Final Project Carly Mattis"
+author: "Carly Mattis"
+date: "11/06/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Welcome to my project
+
+```{r}
+rm(list=ls(all=T))
+
+setwd("C:/Users/jpoty/Documents/Carly/LHB_N10/Manual_LM_Shape_Analysis")  #setting the work directory 
+getwd() #checking that the work directory is correct
+
+install.packages("geomorph")
+install.packages("rgl")  #if using a mac, you may need to download XQuartz to run the rgl package, which you can download from https://www.xquartz.org/ and must be running everytime you are using geomorph
+install.packages("ape")
+install.packages("geiger")
+install.packages("phytools")
+install.packages("jpeg")
+install.packages("svd")
+install.packages("shapes")
+install.packages("scatterplot3d")
+install.packages("dplyr")
+
+
+library(geomorph)  #if you get some warning messages here, make sure you have all of the packages above downloaded, or your plots won't plot
+library(dplyr)
+
+
+#citation("geomorph")
+```
+
+## Loading data into R
+
+```{r}
+forelimb.shape.data <- read.csv("experimental_FL_nohets.csv")  #read the csv data file that I sent to you with landmark data 
+hindlimb.shape.data <- read.csv("experimental_HL_nohets.csv")
+skull.shape.data <- read.csv("experimental_S_nohets.csv")
+
+class(forelimb.shape.data)
+forelimb.shape.data.frame <- as.data.frame(forelimb.shape.data)
+hindlimb.shape.data.frame <- as.data.frame(hindlimb.shape.data)
+skull.shape.data.frame <- as.data.frame(skull.shape.data)
+
+class(forelimb.shape.data.frame)
+head(forelimb.shape.data.frame)
+head(hindlimb.shape.data.frame)
+head(skull.shape.data.frame)
+
+view(forelimb.shape.data.frame)
+view(hindlimb.shape.data.frame)
+view(skull.shape.data.frame)
+
+#head(mouse.data) #checking the dataframe 
+#class(mouse.data)
+#mouse.data.frame <- as.data.frame(mouse.data) #my subsetting wasn't working, so i made sure the data was a data.frame and then it worked! 
+#head(mouse.data.frame)
+#class(mouse.data.frame)
+
+```
+
+## Converting landmark data into 3D microarray 
+
+```{r}
+#I need to subset the dataframe to only include the landmark coordinates, and then pass that through the arrayspecs function to convert it to a 3D array
+
+install.packages("tidyverse") #we will use some tidyverse packages to subset the data more eloquently 
+library(dbplyr)
+library(tidyverse)
+
+
+forelimb.landmarks <- select(forelimb.shape.data.frame, starts_with("LM")) #creating a new object with only the landmark data in it. I am using starts_with so that I can use this code for any data I want, as long as those columns are named LM1x, LM1y, etc. (as opposed to just choosing the number of columns which is only specific to this dataset)
+hindlimb.landmarks <- select(hindlimb.shape.data.frame, starts_with("LM"))
+skull.landmarks <- select(skull.shape.data.frame, starts_with("LM"))
+
+forelimb.landmarks #nice, now I can pass this through array specs
+hindlimb.landmarks
+skull.landmarks
+
+
+forelimb.array <- arrayspecs(forelimb.landmarks, 13, 3) #need to tell it which data to use, how many landmarks there are, and how many dimensions they are in 
+hindlimb.array <- arrayspecs(hindlimb.landmarks, 15, 3)
+skull.array <- arrayspecs(skull.landmarks, 14, 3)
+
+
+forelimb.array
+hindlimb.array
+skull.array
+
+dim(forelimb.array)
+dim(hindlimb.array)
+dim(skull.array)
+
+#great work! We have now converted our landmark coordinates from a matrix into a 3D array (double checked using the dimensions function, you should see three numbers)
+
+## estimate.missing(mouse.array, method = c("TPS","Reg")) #this is a way to check and see if any of your specimen samples are missing landmark data, which they are not! If they were, they will be estimated using this function, or you can use another function to remove them 
+```
+
+## Procrustes superimposition 
+
+```{r}
+#this is showing us the raw landmark data plotted before any procrustes superimposition 
+
+plot(forelimb.array)
+plotAllSpecimens(forelimb.array)
+
+plot(hindlimb.array)
+plotAllSpecimens(hindlimb.array)
+
+plot(skull.array)
+plotAllSpecimens(skull.array)
+
+#before we can make meaningful comparisons between the landmarking of each sample, we must scale, rotate, and align the landmark (using procrustes superimposition)
+
+class(forelimb.array)
+FL.gpa <- gpagen(forelimb.array)
+head(FL.gpa) #the readout of gpagen in a list with multiple components (centroid size, procrustes coordinates, etc, etc), we need to choose the coords only to plot
+FL.gpa
+FL.gpa$coords
+class(FL.gpa$coords)
+
+plot(FL.gpa$coords) #now we can see a plot of the 
+plotAllSpecimens(FL.gpa$coords)
+
+#now for hindlimb
+class(hindlimb.array)
+HL.gpa <- gpagen(hindlimb.array)
+head(HL.gpa) 
+HL.gpa
+HL.gpa$coords
+class(HL.gpa$coords)
+
+plot(HL.gpa$coords) 
+plotAllSpecimens(HL.gpa$coords)
+
+#and skull
+class(skull.array)
+S.gpa <- gpagen(skull.array)
+head(S.gpa) 
+S.gpa
+S.gpa$coords
+class(S.gpa$coords)
+
+plot(S.gpa$coords) 
+plotAllSpecimens(S.gpa$coords)
+
+
+```
+
+## Principle Component Analysis
+
+```{r}
+
+forelimb.mean.shape <- (mshape(FL.gpa$coords))
+hindlimb.mean.shape <- (mshape(HL.gpa$coords))
+skull.mean.shape <- (mshape(S.gpa$coords))
+
+plot(forelimb.mean.shape)
+plot(hindlimb.mean.shape)
+plot(skull.mean.shape)
+
+#plotTangentSpace(FL.gpa$coords) ##this function doesn't exist anymore so use gm.prcomp
+#gm.prcomp(FL.gpa$coords)
+
+FL.gpa
+
+forelimb.pca <- gm.prcomp(FL.gpa$coords)
+forelimb.pca
+plot(forelimb.pca)
+summary(forelimb.pca)
+
+hindlimb.pca <- gm.prcomp(HL.gpa$coords)
+hindlimb.pca
+plot(hindlimb.pca)
+
+skull.pca <- gm.prcomp(S.gpa$coords)
+skull.pca
+plot(skull.pca)
+
+```
+## Plotting
+
+```{r}
+
+#put this into a data frame based on genotype
+forelimb.pca.df <- cbind.data.frame(forelimb.shape.data.frame$Genotype, forelimb.pca$x) 
+forelimb.pca.df
+dim(forelimb.pca.df)
+
+hindlimb.pca.df <- cbind.data.frame(hindlimb.shape.data.frame$Genotype, hindlimb.pca$x)
+hindlimb.pca.df
+dim(hindlimb.pca.df)
+
+skull.pca.df <- cbind.data.frame(skull.shape.data.frame$Genotype, skull.pca$x)
+skull.pca.df
+dim(skull.pca.df)
+
+#lhb.n5.pca.df <- cbind.data.frame(lhb.data.frame$Genotype, lhb.n5.pca$x)
+#lhb.n5.pca.df
+#dim(lhb.n5.pca.df)
+
+#make pc1 and pc2 means ( i dont really know why)
+FL.grp.means <- aggregate(x = forelimb.pca.df[,2:3], by = list(forelimb.shape.data.frame$Genotype), FUN = "mean")
+FL.grp.means
+HL.grp.means <- aggregate(x = hindlimb.pca.df[,2:3], by = list(hindlimb.shape.data.frame$Genotype), FUN = "mean")
+HL.grp.means
+S.grp.means <- aggregate(x = skull.pca.df[,2:3], by = list(skull.shape.data.frame$Genotype), FUN = "mean")
+S.grp.means
+
+##grp.means <- aggregate(x = lhb.n5.pca.df[,2:3], by = list(lhb.data.frame$Genotype), FUN = "mean")
+##grp.means
+
+#okay now HOPEFULLY make a pretty plot! 
+
+##ggplot(data = lhb.n5.pca.df, mapping = aes(x=PC1, y=PC2)
+##) + geom_point(alpha=1, aes(color=lhb.data.frame$Genotype)) + 
+##  scale_color_manual(values = c("#A50026","#5AAE61")) + 
+##  geom_point(data = grp.means, mapping = aes(x=PC1, y=PC2), size=5, 
+##             color=c("#A50026","#5AAE61"), alpha=0.7)
+
+?geom_point
+
+#forelimb
+ggplot(data = forelimb.pca.df, mapping = aes(x=Comp1, y=Comp2)
+) + geom_point(alpha=1, aes(color=forelimb.shape.data.frame$Genotype), size = 2) + 
+  stat_ellipse(aes(color=forelimb.shape.data.frame$Genotype), lwd = 1.2) +
+  scale_color_manual(values = c("#A50026","#5AAE61")) +
+  geom_point(data = FL.grp.means, mapping = aes(x=Comp1, y=Comp2), size=6, 
+             color=c("#A50026","#5AAE61"), alpha=0.7) +
+  theme_bw()
+
+#hindlimb
+ggplot(data = hindlimb.pca.df, mapping = aes(x=Comp1, y=Comp2)
+) + geom_point(alpha=1, aes(color=hindlimb.shape.data.frame$Genotype), size = 2) + 
+  stat_ellipse(aes(color=hindlimb.shape.data.frame$Genotype), lwd = 1.2) +
+  scale_color_manual(values = c("#A50026","#5AAE61")) + 
+  geom_point(data = HL.grp.means, mapping = aes(x=Comp1, y=Comp2), size=6, 
+             color=c("#A50026","#5AAE61"), alpha=0.7) +
+  theme_bw()
+
+#skull
+ggplot(data = skull.pca.df, mapping = aes(x=Comp1, y=Comp2)
+) + geom_point(alpha=1, aes(color=skull.shape.data.frame$Genotype), size = 2) + 
+    stat_ellipse(aes(color=skull.shape.data.frame$Genotype), lwd = 1.2) +
+  scale_color_manual(values = c("#A50026","#5AAE61")) + 
+  geom_point(data = S.grp.means, mapping = aes(x=Comp1, y=Comp2), size=6, 
+             color=c("#A50026","#5AAE61"), alpha=0.7) +
+  theme_bw()
+
+```
