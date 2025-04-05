@@ -1,0 +1,799 @@
+rm(list=ls(all=T))
+
+#set the wd
+setwd("C:/Users/jpoty/Documents/Carly/SlicerMorph")
+getwd() #checking that the work directory is correct
+
+#install.packages("geomorph")
+#install.packages("rgl")  #if using a mac, you may need to download XQuartz to run the rgl package, which you can download from https://www.xquartz.org/ and must be running everytime you are using geomorph
+#install.packages("ape")
+#install.packages("geiger")
+#install.packages("phytools")
+#install.packages("jpeg")
+#install.packages("svd")
+#install.packages("shapes")
+#install.packages("scatterplot3d")
+
+
+library(geomorph)  #if you get some warning messages here, make sure you have all of the packages above downloaded, or your plots won't plot
+
+#@@@ FIRST FOR FEMUR @@@
+  
+# Set the path to your folder containing CSV files
+LHB_F_automated_landmarks_folder <- "C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_F_R/Landmarks_output_correct_fcsv"
+#list em
+LHB_F_automated_landmarks_as_csv_files <- list.files(path = LHB_F_automated_landmarks_folder, pattern = "\\.fcsv$", full.names = TRUE)
+
+# Create an empty list to store data frames full data
+LHB_F_automated_landmarks_data_list <- list()
+
+
+# Open each FCSV file individually
+for (i in 1:length(LHB_F_automated_landmarks_as_csv_files)) {
+  # Read the lines from the file
+  lines <- readLines(LHB_F_automated_landmarks_as_csv_files[i])
+  
+  # Skip the first three rows (metadata)
+  data_lines <- lines[4:length(lines)]
+  
+  # Read the data into a data frame
+  data <- read.csv(text = data_lines, header = FALSE, stringsAsFactors = FALSE)
+  
+  # Extract column names from the third row
+  col_names <- unlist(strsplit(lines[3], ","))  # Split the third row by comma
+  col_names <- trimws(col_names)  # Remove leading and trailing whitespace
+  
+  # Set column names of the data frame
+  colnames(data) <- col_names
+  
+  # Store the data frame in the list
+  LHB_F_automated_landmarks_data_list[[i]] <- data
+}
+
+# Now data_list contains all 26 data frames
+# You can access them individually, for example:
+# FLHL_automated_landmarks_data_list[[1]] to access the first data frame
+# FLHL_automated_landmarks_data_list[[2]] to access the second data frame
+# And so on...
+
+LHB_F_automated_landmarks_data_list[[1]]
+
+library(dplyr)
+
+# Create an empty list to store the combined x, y, and z data
+LHB_F_automated_landmark_combined_xyz <- list()
+
+# Iterate over each data frame in the list
+for (i in seq_along(LHB_F_automated_landmarks_data_list)) {
+  # Get the current data frame
+  df <- LHB_F_automated_landmarks_data_list[[i]]
+  
+  # Create an empty data frame to store the combined x, y, and z data for the current data frame
+  df_combined <- data.frame(matrix(nrow = 1, ncol = 3 * nrow(df)))  # Each row will have x, y, and z values
+  
+  # Iterate over each row in the current data frame
+  for (j in 1:nrow(df)) {
+    # Extract x, y, and z values from the current row
+    x <- df[j, "x"]
+    y <- df[j, "y"]
+    z <- df[j, "z"]
+    
+    # Calculate the column indices for the current row
+    col_indices <- ((j - 1) * 3 + 1):((j - 1) * 3 + 3)
+    
+    # Store the x, y, and z values in the corresponding columns of the combined data frame
+    df_combined[, col_indices] <- c(x, y, z)
+  }
+  
+  # Label the columns with x1, y1, z1, x2, y2, z2, ...
+  colnames(df_combined) <- paste0(rep(c("x", "y", "z"), each = nrow(df)), rep(1:nrow(df), each = 3))
+  
+  # Append the combined x, y, and z data for the current data frame to the list
+  LHB_F_automated_landmark_combined_xyz[[i]] <- df_combined
+}
+
+# Combine all data frames in combined_xyz into a single data frame
+LHB_F_automated_landmark_final_combined_data <- do.call(rbind, LHB_F_automated_landmark_combined_xyz)
+
+# Now final_combined_data contains the extracted x, y, and z columns from all data frames in one row, labeled with old row numbers and file names
+
+#View(LHB_F_automated_landmark_final_combined_data)
+colnames(LHB_F_automated_landmark_final_combined_data)
+
+#want to add a column with the file names
+# Extract the file names without extension
+file_names <- tools::file_path_sans_ext(basename(LHB_F_automated_landmarks_as_csv_files))
+#View(file_names)
+
+LHB_F_automated_landmark_final_combined_data_withfilenames <- cbind(file_name = file_names, LHB_F_automated_landmark_final_combined_data)
+
+#View(LHB_F_automated_landmark_final_combined_data_withfilenames)
+
+#now i want to relabel the columns using a loop
+#get the # of columns in the data frame
+num_cols <- ncol(LHB_F_automated_landmark_final_combined_data_withfilenames)
+
+# Create a vector to store the new column names
+new_col_names <- character()
+
+# Iterate over each column index
+for (i in 1:num_cols) {
+  # Check if the column index is divisible by 3
+  if (i %% 3 == 0) {
+    # Calculate the label index
+    label_index <- i / 3
+    
+    # Append new column names for x, y, and z
+    new_col_names <- c(new_col_names, paste0(label_index, "x"), paste0(label_index, "y"), paste0(label_index, "z"))
+  }
+}
+
+# Rename the columns of the data frame
+colnames(LHB_F_automated_landmark_final_combined_data_withfilenames)[2:num_cols] <- new_col_names
+
+# Now the columns are renamed as desired
+
+View(LHB_F_automated_landmark_final_combined_data_withfilenames)
+
+#now make file names the row labels instead of its own column (i tried to do this right from the start but couldn't figure it out) 
+# Assuming you have a vector of file names named "file_names"
+# Set the row names of the data frame to be the file names
+row.names(LHB_F_automated_landmark_final_combined_data_withfilenames) <- LHB_F_automated_landmark_final_combined_data_withfilenames$file_name
+
+# Remove the file name column
+LHB_F_automated_landmark_final_combined_data_withfilenames$file_name <- NULL
+
+# Now the row labels of the data frame are the file names
+
+#okay this should now be perfect
+View(LHB_F_automated_landmark_final_combined_data_withfilenames)
+
+#renaming it so it's beautiful
+
+LHB_F_automated_landmarks_coordinates_final <- LHB_F_automated_landmark_final_combined_data_withfilenames
+
+View(LHB_F_automated_landmarks_coordinates_final)
+row.names(LHB_F_automated_landmarks_coordinates_final)
+
+
+# Export the dataframe to csv
+write.csv(LHB_F_automated_landmarks_coordinates_final,
+          file = "ucalgary_2025_sullivan_carly_LHB_F_pseduolandmarkcoordinates_final.csv",
+          row.names = TRUE)
+
+#IF RUNNING THE CODE FROM CARLYS THESIS SUPPLEMENTARY FILES, START HERE
+#load landmark dataset from carly sullivan supplemental files (note need to set to your working directory)
+#LHB_F_automated_landmarks_coordinates_final <- read.csv("ucalgary_2025_sullivan_carly_LHB_F_pseduolandmarkcoordinates_final.csv", row.names = 1)
+#View(LHB_F_automated_landmarks_coordinates_final)
+
+
+################# OKAY NOW THE SHAPE ANALYSIS CAN BEGIN #################################
+dim(LHB_F_automated_landmarks_coordinates_final)
+
+#nice, now I can pass this through array specs
+LHB_F_automated_landmarks_coordinates_final.array <- arrayspecs(LHB_F_automated_landmarks_coordinates_final, 2856, 3)
+
+LHB_F_automated_landmarks_coordinates_final.array
+dim(LHB_F_automated_landmarks_coordinates_final.array)
+
+#great work! We have now converted our landmark coordinates from a matrix into a 3D array (double checked using the dimensions function, you should see three numbers)
+
+## estimate.missing(mouse.array, method = c("TPS","Reg")) #this is a way to check and see if any of your specimen samples are missing landmark data, which they are not! If they were, they will be estimated using this function, or you can use another function to remove them 
+#estimate.missing(FLHL_automated_landmarks_coordinates_final.array, method = c("TPS","Reg"))
+
+#this is showing us the raw landmark data plotted before any procrustes superimposition 
+
+
+library("geomorph")
+#install.packages("ggplot2")
+library("ggplot2")
+
+plot(LHB_F_automated_landmarks_coordinates_final.array)
+plotAllSpecimens(LHB_F_automated_landmarks_coordinates_final.array)
+
+
+#before we can make meaningful comparisons between the landmarking of each sample, we must scale, rotate, and align the landmark (using procrustes superimposition)
+
+class(LHB_F_automated_landmarks_coordinates_final.array)
+LHB_F.gpa <- gpagen(LHB_F_automated_landmarks_coordinates_final.array)
+head(LHB_F.gpa) #the readout of gpagen in a list with multiple components (centroid size, procrustes coordinates, etc, etc), we need to choose the coords only to plot
+#View(LHB_F.gpa)
+#View(LHB_F.gpa$coords)
+class(LHB_F.gpa$coords)
+
+#covert the new coordinates into a 2D array (useful for later stuff)
+LHB_F_GPA_LMS_array <- two.d.array(LHB_F.gpa$coords)
+
+plot(LHB_F.gpa$coords) #now we can see a plot of the superimposed points! fun! 
+plotAllSpecimens(LHB_F.gpa$coords)
+
+#### Time for the PCA! 
+
+LHB_F.mean.shape <- (mshape(LHB_F.gpa$coords))
+plot(LHB_F.mean.shape)
+
+
+#plotTangentSpace(FL.gpa$coords) ##this function doesn't exist anymore so use gm.prcomp
+#gm.prcomp(FL.gpa$coords)
+
+LHB_F.gpa
+
+LHB_F.pca <- gm.prcomp(LHB_F.gpa$coords)
+LHB_F.pca
+plot(LHB_F.pca)
+summary(LHB_F.pca)
+
+
+## welp now it is time to group them by genotype so i think i have to go back to the dataframe and add a column for it
+# i just went an made an excel with the genotypes on it and matching the file names so hoepfully i can just merge the dataframes
+
+#install.packages("readxl")
+library("readxl")
+
+LHB_F_withgenotypes <- read_excel("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_F_R/Genotypes/LHB_F_genotypes.xlsx")
+#View(LHB_F_withgenotypes)
+
+
+#so now i will merge them 
+LHB_F_automated_landmarks_coordinates_final$file_name <- rownames(LHB_F_automated_landmarks_coordinates_final)
+LHB_F_automated_landmarks_coordinates_final_withgenotypes <- merge(LHB_F_automated_landmarks_coordinates_final, LHB_F_withgenotypes, by.x = "file_name", by.y = "sample ID", all.x = TRUE)
+#put row names back as sample ID
+row.names(LHB_F_automated_landmarks_coordinates_final_withgenotypes) <- LHB_F_automated_landmarks_coordinates_final_withgenotypes$file_name
+
+# Remove the file name column
+LHB_F_automated_landmarks_coordinates_final_withgenotypes$file_name <- NULL
+#move last column (genotypes) to first
+LHB_F_automated_landmarks_coordinates_final_withgenotypes <- LHB_F_automated_landmarks_coordinates_final_withgenotypes[, c(num_cols, 1:(num_cols - 1))]
+
+#View(LHB_F_automated_landmarks_coordinates_final_withgenotypes)
+class(LHB_F_automated_landmarks_coordinates_final_withgenotypes)
+#wow this is magic 
+
+#put this into a data frame based on genotype
+LHB_F.pca.df <- cbind.data.frame(LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype, LHB_F.pca$x) 
+#View(LHB_F.pca.df)
+dim(LHB_F.pca.df)
+
+
+#make pc1 and pc2 means 
+LHB_F.grp.means <- aggregate(x = LHB_F.pca.df[,2:3], by = list(LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype), FUN = "mean")
+LHB_F.grp.means
+
+#pretty plot we hope 
+
+#install.packages("ggplot2")
+library("ggplot2")
+
+ggplot(data = LHB_F.pca.df, mapping = aes(x=Comp1, y=Comp2)
+) + geom_point(alpha=1, aes(color=LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype), size = 2) + 
+  stat_ellipse(aes(color=LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype), lwd = 1.2) +
+  scale_color_manual(values = c("#A50026","#5AAE61")) +
+  geom_point(data = LHB_F.grp.means, mapping = aes(x=Comp1, y=Comp2), size=6, 
+             color=c("#A50026","#5AAE61"), alpha=0.7) +
+  theme_bw()
+
+
+## LETS TRY SOME MORE ANALYSIS ##
+
+#find sample closest to mean for warping this is neat
+
+findMeanSpec(LHB_F_automated_landmarks_coordinates_final.array)
+#output is LHB_0149_F_R neat 
+#read in the .ply file of the output one 
+
+#install.packages("Morpho")
+library("Morpho")
+LHB_0149_F_R.ply <- file2mesh("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_F_R/Target_models/16-20/LHB_0149_F_R.ply")
+
+#neaT! add landmarks for this file as csv
+LHB_0149_F_R.lms <- (read.fcsv("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_F_R/Landmarks_output_correct_fcsv/LHB_0149_F_R.fcsv"))
+LHB_0149_F_R.lms
+nrow(LHB_0149_F_R.lms)
+ncol(LHB_0149_F_R.lms)
+str(LHB_0149_F_R.lms)
+
+#show the .ply as a model in new window
+
+plot3d(LHB_0149_F_R.ply, col = "lightgrey", alpha=0.5, 
+       axes = F, box = F, asp=F,
+       xlab = "", ylab = "", zlab = "", main = "")
+
+#add the landmarks in red to the model 
+spheres3d(LHB_0149_F_R.lms, radius = 5, color = "red")
+
+#add number labels to it this seems not needed 
+#text3d(x = LHB_0149_F_R.lms, texts =1:nrow(LHB_0149_F_R.lms), adj=c(0.75,1.5), cex=1, font=2)
+
+#calculate the group mean shape coordinates for each genotype with the mshape function
+#these will serve as targets for the warping of the reference mesh (WT 0149 mean above)
+#to generate meshes of what each genotypes's group mean looks like
+
+#need to do all of this with the GPA coordiante (after procrustes) 
+#add genotypes to the array made earlier
+#covert the new coordinates into a 2D array
+LHB_F_GPA_LMS_array <- two.d.array(LHB_F.gpa$coords)
+
+LHB_F_GPA_LMS.df <- cbind.data.frame(LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype, LHB_F_GPA_LMS_array) 
+#View(LHB_F_GPA_LMS.df)
+
+#create an mshape for WT
+#subset LHB+/+
+#View(LHB_F_automated_landmarks_coordinates_final_withgenotypes)
+LHB_F_LMS_WT_subset <- subset(LHB_F_GPA_LMS.df, LHB_F_GPA_LMS.df$LHB_F_automated_landmarks_coordinates_final_withgenotypes=="LHB +/+")
+#View(LHB_F_LMS_WT_subset)
+str(LHB_F_LMS_WT_subset)
+dim(LHB_F_LMS_WT_subset)
+#before can pass through array need to remove genotype column
+LHB_F_LMS_WT_subset$`LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype` <- NULL
+#View(LHB_F_LMS_WT_subset)
+LHB_F_LMS_WT_subset$LHB_F_automated_landmarks_coordinates_final_withgenotypes <- NULL
+#View(LHB_F_LMS_WT_subset)
+dim(LHB_F_LMS_WT_subset)
+LHB_F_LMS_WT_subset_array <- arrayspecs(LHB_F_LMS_WT_subset, 2856, 3)
+LHB_F_WT_mean_shape <- mshape(LHB_F_LMS_WT_subset_array)
+
+#do the same for KO
+#View(LHB_F_automated_landmarks_coordinates_final_withgenotypes)
+LHB_F_LMS_KO_subset <- subset(LHB_F_GPA_LMS.df, LHB_F_GPA_LMS.df$LHB_F_automated_landmarks_coordinates_final_withgenotypes=="LHB -/-")
+#View(LHB_F_LMS_KO_subset)
+str(LHB_F_LMS_KO_subset)
+dim(LHB_F_LMS_KO_subset)
+#before can pass through array need to remove genotype column
+LHB_F_LMS_KO_subset$`LHB_F_automated_landmarks_coordinates_final_withgenotypes$genotype` <- NULL
+#View(LHB_F_LMS_KO_subset)
+dim(LHB_F_LMS_KO_subset)
+LHB_F_LMS_KO_subset_array <- arrayspecs(LHB_F_LMS_KO_subset, 2856, 3)
+LHB_F_KO_mean_shape <- mshape(LHB_F_LMS_KO_subset_array)
+
+# ok now take reference (0149) and warp it to creat mean meshes 
+#rotate the reference into the same space as the WT mean shape coordinates
+rot2LHB_F_WT <- rotmesh.onto(mesh = LHB_0149_F_R.ply, refmat = LHB_0149_F_R.lms, tarmat = LHB_F_WT_mean_shape, 
+                        scale = T, reflection = T)
+
+#do the same for KO
+rot2LHB_F_KO <- rotmesh.onto(mesh = LHB_0149_F_R.ply, refmat = LHB_0149_F_R.lms, tarmat = LHB_F_KO_mean_shape, 
+                             scale = T, reflection = T)
+
+#now extract mesh and coordinates from the rotation 
+LHB_F_WT.rot.mesh <- rot2LHB_F_WT$mesh
+LHB_F_WT.rot.lms <- rot2LHB_F_WT$yrot
+
+#same for KO 
+LHB_F_KO.rot.mesh <- rot2LHB_F_KO$mesh
+LHB_F_KO.rot.lms <- rot2LHB_F_KO$yrot
+
+#okay now use aligned coordinated to warp the reference mesh into group mean meshes
+#WT mean mesh 
+LHB_F_WT.mesh <- tps3d(x = LHB_F_WT.rot.mesh, refmat = LHB_F_WT.rot.lms, tarmat = LHB_F_WT_mean_shape)
+
+# plot (plot in different colors for each mean)
+
+plot3d(LHB_F_WT.mesh, col="#5AAE61", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#same for KO 
+LHB_F_KO.mesh <- tps3d(x = LHB_F_KO.rot.mesh, refmat = LHB_F_KO.rot.lms, tarmat = LHB_F_KO_mean_shape)
+
+# plot (plot in different colors for each mean)
+
+plot3d(LHB_F_KO.mesh, col="#A50026", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#hopefully now for deformation heat map pray for me 
+#WT to KO deformation heat map 
+
+par3d(zoom=0.9)
+meshDist(x = LHB_F_WT.mesh, mesh2 = LHB_F_KO.mesh, plot = T)
+
+#can compute displacements between WT and KO landmarks
+
+LHB_F_displacements <- LHB_F_KO_mean_shape-LHB_F_WT_mean_shape
+LHB_F_WT_withdisplacements <- LHB_F_WT_mean_shape +LHB_F_displacements
+magnifier <- 7
+LHB_F_magmat <- LHB_F_displacements*magnifier
+#View(LHB_F_magmat)
+LHB_F_WT.mag <- LHB_F_WT_mean_shape + LHB_F_magmat
+
+plot3d(LHB_F_KO_mean_shape, col="#A50026", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#Create an additional set of lines in blue to show the displacements calculated above
+for(i in 1:nrow(LHB_F_WT_mean_shape)){ #generate displacement vector lines 
+  lines3d(rbind(LHB_F_WT_mean_shape[i,], LHB_F_WT_withdisplacements[i,]),col="blue", lwd=2)
+}
+
+
+#@@@@@@ OKAY NOW FOR HUMERUS @@@@@@@ 
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Set the path to your folder containing CSV files
+LHB_H_automated_landmarks_folder <- "C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_H_R/Landmarks_output_correct_fcsv"
+#list em
+LHB_H_automated_landmarks_as_csv_files <- list.files(path = LHB_H_automated_landmarks_folder, pattern = "\\.fcsv$", full.names = TRUE)
+
+# Create an empty list to store data frames full data
+LHB_H_automated_landmarks_data_list <- list()
+
+
+# Open each FCSV file individually
+for (i in 1:length(LHB_H_automated_landmarks_as_csv_files)) {
+  # Read the lines from the file
+  lines <- readLines(LHB_H_automated_landmarks_as_csv_files[i])
+  
+  # Skip the first three rows (metadata)
+  data_lines <- lines[4:length(lines)]
+  
+  # Read the data into a data frame
+  data <- read.csv(text = data_lines, header = FALSE, stringsAsFactors = FALSE)
+  
+  # Extract column names from the third row
+  col_names <- unlist(strsplit(lines[3], ","))  # Split the third row by comma
+  col_names <- trimws(col_names)  # Remove leading and trailing whitespace
+  
+  # Set column names of the data frame
+  colnames(data) <- col_names
+  
+  # Store the data frame in the list
+  LHB_H_automated_landmarks_data_list[[i]] <- data
+}
+
+# Now data_list contains all 26 data frames
+# You can access them individually, for example:
+# FLHL_automated_landmarks_data_list[[1]] to access the first data frame
+# FLHL_automated_landmarks_data_list[[2]] to access the second data frame
+# And so on...
+
+LHB_H_automated_landmarks_data_list[[1]]
+
+
+library(dplyr)
+
+# Create an empty list to store the combined x, y, and z data
+LHB_H_automated_landmark_combined_xyz <- list()
+
+# Iterate over each data frame in the list
+for (i in seq_along(LHB_H_automated_landmarks_data_list)) {
+  # Get the current data frame
+  df <- LHB_H_automated_landmarks_data_list[[i]]
+  
+  # Create an empty data frame to store the combined x, y, and z data for the current data frame
+  df_combined <- data.frame(matrix(nrow = 1, ncol = 3 * nrow(df)))  # Each row will have x, y, and z values
+  
+  # Iterate over each row in the current data frame
+  for (j in 1:nrow(df)) {
+    # Extract x, y, and z values from the current row
+    x <- df[j, "x"]
+    y <- df[j, "y"]
+    z <- df[j, "z"]
+    
+    # Calculate the column indices for the current row
+    col_indices <- ((j - 1) * 3 + 1):((j - 1) * 3 + 3)
+    
+    # Store the x, y, and z values in the corresponding columns of the combined data frame
+    df_combined[, col_indices] <- c(x, y, z)
+  }
+  
+  # Label the columns with x1, y1, z1, x2, y2, z2, ...
+  colnames(df_combined) <- paste0(rep(c("x", "y", "z"), each = nrow(df)), rep(1:nrow(df), each = 3))
+  
+  # Append the combined x, y, and z data for the current data frame to the list
+  LHB_H_automated_landmark_combined_xyz[[i]] <- df_combined
+}
+
+# Combine all data frames in combined_xyz into a single data frame
+LHB_H_automated_landmark_final_combined_data <- do.call(rbind, LHB_H_automated_landmark_combined_xyz)
+
+# Now final_combined_data contains the extracted x, y, and z columns from all data frames in one row, labeled with old row numbers and file names
+
+#View(LHB_H_automated_landmark_final_combined_data)
+colnames(LHB_H_automated_landmark_final_combined_data)
+
+#want to add a column with the file names
+# Extract the file names without extension
+file_names <- tools::file_path_sans_ext(basename(LHB_H_automated_landmarks_as_csv_files))
+#View(file_names)
+
+LHB_H_automated_landmark_final_combined_data_withfilenames <- cbind(file_name = file_names, LHB_H_automated_landmark_final_combined_data)
+
+#View(LHB_H_automated_landmark_final_combined_data_withfilenames)
+
+#now i want to relabel the columns using a loop
+#get the # of columns in the data frame
+num_cols <- ncol(LHB_H_automated_landmark_final_combined_data_withfilenames)
+
+# Create a vector to store the new column names
+new_col_names <- character()
+
+# Iterate over each column index
+for (i in 1:num_cols) {
+  # Check if the column index is divisible by 3
+  if (i %% 3 == 0) {
+    # Calculate the label index
+    label_index <- i / 3
+    
+    # Append new column names for x, y, and z
+    new_col_names <- c(new_col_names, paste0(label_index, "x"), paste0(label_index, "y"), paste0(label_index, "z"))
+  }
+}
+
+# Rename the columns of the data frame
+colnames(LHB_H_automated_landmark_final_combined_data_withfilenames)[2:num_cols] <- new_col_names
+
+# Now the columns are renamed as desired
+
+#View(LHB_H_automated_landmark_final_combined_data_withfilenames)
+
+#now make file names the row labels instead of its own column (i tried to do this right from the start but couldn't figure it out) 
+# Assuming you have a vector of file names named "file_names"
+# Set the row names of the data frame to be the file names
+row.names(LHB_H_automated_landmark_final_combined_data_withfilenames) <- LHB_H_automated_landmark_final_combined_data_withfilenames$file_name
+
+# Remove the file name column
+LHB_H_automated_landmark_final_combined_data_withfilenames$file_name <- NULL
+
+# Now the row labels of the data frame are the file names
+
+#okay this should now be perfect
+#View(LHB_H_automated_landmark_final_combined_data_withfilenames)
+
+#renaming it so it's beautiful
+
+LHB_H_automated_landmarks_coordinates_final <- LHB_H_automated_landmark_final_combined_data_withfilenames
+
+#View(LHB_H_automated_landmarks_coordinates_final)
+row.names(LHB_H_automated_landmarks_coordinates_final)
+
+
+# Export the dataframe to csv
+write.csv(LHB_H_automated_landmarks_coordinates_final,
+          file = "ucalgary_2025_sullivan_carly_LHB_H_pseduolandmarkcoordinates_final.csv",
+          row.names = TRUE)
+
+#IF RUNNING THE CODE FROM CARLYS THESIS SUPPLEMENTARY FILES, START HERE
+#load landmark dataset from carly sullivan supplemental files (note need to set to your working directory)
+#LHB_H_automated_landmarks_coordinates_final <- read.csv("ucalgary_2025_sullivan_carly_LHB_H_pseduolandmarkcoordinates_final.csv", row.names = 1)
+#View(LHB_H_automated_landmarks_coordinates_final)
+
+################# OKAY NOW THE SHAPE ANALYSIS CAN BEGIN #################################
+dim(LHB_H_automated_landmarks_coordinates_final)
+
+#nice, now I can pass this through array specs
+LHB_H_automated_landmarks_coordinates_final.array <- arrayspecs(LHB_H_automated_landmarks_coordinates_final, 2297, 3)
+
+LHB_H_automated_landmarks_coordinates_final.array
+dim(LHB_H_automated_landmarks_coordinates_final.array)
+
+#great work! We have now converted our landmark coordinates from a matrix into a 3D array (double checked using the dimensions function, you should see three numbers)
+
+## estimate.missing(mouse.array, method = c("TPS","Reg")) #this is a way to check and see if any of your specimen samples are missing landmark data, which they are not! If they were, they will be estimated using this function, or you can use another function to remove them 
+#estimate.missing(FLHL_automated_landmarks_coordinates_final.array, method = c("TPS","Reg"))
+
+#this is showing us the raw landmark data plotted before any procrustes superimposition 
+
+
+library("geomorph")
+#install.packages("ggplot2")
+library("ggplot2")
+
+plot(LHB_H_automated_landmarks_coordinates_final.array)
+plotAllSpecimens(LHB_H_automated_landmarks_coordinates_final.array)
+
+
+#before we can make meaningful comparisons between the landmarking of each sample, we must scale, rotate, and align the landmark (using procrustes superimposition)
+
+class(LHB_H_automated_landmarks_coordinates_final.array)
+LHB_H.gpa <- gpagen(LHB_H_automated_landmarks_coordinates_final.array)
+head(LHB_H.gpa) #the readout of gpagen in a list with multiple components (centroid size, procrustes coordinates, etc, etc), we need to choose the coords only to plot
+LHB_H.gpa
+LHB_H.gpa$coords
+class(LHB_H.gpa$coords)
+
+plot(LHB_H.gpa$coords) #now we can see a plot of the superimposed points! fun! 
+plotAllSpecimens(LHB_H.gpa$coords)
+
+#### Time for the PCA! 
+
+LHB_H.mean.shape <- (mshape(LHB_H.gpa$coords))
+plot(LHB_H.mean.shape)
+
+#plotTangentSpace(FL.gpa$coords) ##this function doesn't exist anymore so use gm.prcomp
+#gm.prcomp(FL.gpa$coords)
+
+LHB_H.gpa
+
+LHB_H.pca <- gm.prcomp(LHB_H.gpa$coords)
+LHB_H.pca
+plot(LHB_H.pca)
+summary(LHB_H.pca)
+
+## welp now it is time to group them by genotype so i think i have to go back to the dataframe and add a column for it
+# i just went an made an excel with the genotypes on it and matching the file names so hoepfully i can just merge the dataframes
+
+#install.packages("readxl")
+library("readxl")
+
+LHB_H_withgenotypes <- read_excel("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_H_R/Genotypes/LHB_H_genotypes.xlsx")
+#View(LHB_H_withgenotypes)
+
+#so now i will merge them 
+LHB_H_automated_landmarks_coordinates_final$file_name <- rownames(LHB_H_automated_landmarks_coordinates_final)
+
+LHB_H_automated_landmarks_coordinates_final_withgenotypes <- merge(LHB_H_automated_landmarks_coordinates_final, LHB_H_withgenotypes, by.x = "file_name", by.y = "sample ID", all.x = TRUE)
+
+#View(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+#put row names back as sample ID
+row.names(LHB_H_automated_landmarks_coordinates_final_withgenotypes) <- LHB_H_automated_landmarks_coordinates_final_withgenotypes$file_name
+#View(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+
+# Remove the file name column
+LHB_H_automated_landmarks_coordinates_final_withgenotypes$file_name <- NULL
+#move last column (genotypes) to first
+LHB_H_automated_landmarks_coordinates_final_withgenotypes <- LHB_H_automated_landmarks_coordinates_final_withgenotypes[, c(num_cols, 1:(num_cols - 1))]
+
+#View(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+class(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+#wow this is magic 
+
+#put this into a data frame based on genotype
+LHB_H.pca.df <- cbind.data.frame(LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype, LHB_H.pca$x) 
+LHB_H.pca.df
+dim(LHB_H.pca.df)
+
+#make pc1 and pc2 means
+LHB_H.grp.means <- aggregate(x = LHB_H.pca.df[,2:3], by = list(LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype), FUN = "mean")
+LHB_H.grp.means
+
+#pretty plot we hope 
+
+#install.packages("ggplot2")
+library("ggplot2")
+
+ggplot(data = LHB_H.pca.df, mapping = aes(x=Comp1, y=Comp2)
+) + geom_point(alpha=1, aes(color=LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype), size = 2) + 
+  stat_ellipse(aes(color=LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype), lwd = 1.2) +
+  scale_color_manual(values = c("#A50026","#5AAE61")) +
+  geom_point(data = LHB_H.grp.means, mapping = aes(x=Comp1, y=Comp2), size=6, 
+             color=c("#A50026","#5AAE61"), alpha=0.7) +
+  theme_bw()
+
+
+## LETS TRY SOME MORE ANALYSIS FOR HUMERUS ##
+
+#find sample closest to mean for warping this is neat
+
+findMeanSpec(LHB_H_automated_landmarks_coordinates_final.array)
+#output is LHB_0003_H_R neat 
+#read in the .ply file of the output one 
+
+#install.packages("Morpho")
+library("Morpho")
+LHB_0003_H_R.ply <- file2mesh("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_H_R/Target_models/1-5/LHB_0003_H_R.ply")
+
+#neaT! add landmarks for this file as csv
+LHB_0003_H_R.lms <- (read.fcsv("C:/Users/jpoty/Documents/Carly/SlicerMorph/individual_stylopods_lowres/13WT_13KO_H_R/Landmarks_output_correct_fcsv/LHB_0003_H_R.fcsv"))
+LHB_0003_H_R.lms
+nrow(LHB_0003_H_R.lms)
+ncol(LHB_0003_H_R.lms)
+str(LHB_0003_H_R.lms)
+
+#show the .ply as a model in new window
+
+plot3d(LHB_0003_H_R.ply, col = "lightgrey", alpha=0.5, 
+       axes = F, box = F, asp=F,
+       xlab = "", ylab = "", zlab = "", main = "")
+
+#add the landmarks in red to the model 
+spheres3d(LHB_0003_H_R.lms, radius = 5, color = "red")
+
+#add number labels to it this seems not needed 
+#text3d(x = LHB_0149_F_R.lms, texts =1:nrow(LHB_0149_F_R.lms), adj=c(0.75,1.5), cex=1, font=2)
+
+#calculate the group mean shape coordinates for each genotype with the mshape function
+#these will serve as targets for the warping of the reference mesh (WT 0149 mean above)
+#to generate meshes of what each genotypes's group mean looks like
+
+#need to do all of this with the GPA coordiante (after procrustes) 
+#add genotypes to the array made earlier
+#covert the new coordinates into a 2D array
+LHB_H_GPA_LMS_array <- two.d.array(LHB_H.gpa$coords)
+
+LHB_H_GPA_LMS.df <- cbind.data.frame(LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype, LHB_H_GPA_LMS_array) 
+#View(LHB_H_GPA_LMS.df)
+
+#create an mshape for WT
+#subset LHB+/+
+#View(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+LHB_H_LMS_WT_subset <- subset(LHB_H_GPA_LMS.df, LHB_H_GPA_LMS.df$LHB_H_automated_landmarks_coordinates_final_withgenotypes=="LHB +/+")
+#View(LHB_H_LMS_WT_subset)
+str(LHB_H_LMS_WT_subset)
+dim(LHB_H_LMS_WT_subset)
+#before can pass through array need to remove genotype column
+LHB_H_LMS_WT_subset$`LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype` <- NULL
+#View(LHB_H_LMS_WT_subset)
+LHB_H_LMS_WT_subset$LHB_H_automated_landmarks_coordinates_final_withgenotypes <- NULL
+#View(LHB_H_LMS_WT_subset)
+dim(LHB_H_LMS_WT_subset)
+LHB_H_LMS_WT_subset_array <- arrayspecs(LHB_H_LMS_WT_subset, 2297, 3)
+LHB_H_WT_mean_shape <- mshape(LHB_H_LMS_WT_subset_array)
+
+#do the same for KO
+#View(LHB_H_automated_landmarks_coordinates_final_withgenotypes)
+LHB_H_LMS_KO_subset <- subset(LHB_H_GPA_LMS.df, LHB_H_GPA_LMS.df$LHB_H_automated_landmarks_coordinates_final_withgenotypes=="LHB -/-")
+#View(LHB_H_LMS_KO_subset)
+str(LHB_H_LMS_KO_subset)
+dim(LHB_H_LMS_KO_subset)
+#before can pass through array need to remove genotype column
+LHB_H_LMS_KO_subset$`LHB_H_automated_landmarks_coordinates_final_withgenotypes$genotype` <- NULL
+#View(LHB_H_LMS_KO_subset)
+dim(LHB_H_LMS_KO_subset)
+LHB_H_LMS_KO_subset_array <- arrayspecs(LHB_H_LMS_KO_subset, 2297, 3)
+LHB_H_KO_mean_shape <- mshape(LHB_H_LMS_KO_subset_array)
+
+# ok now take reference (0149) and warp it to creat mean meshes 
+#rotate the reference into the same space as the WT mean shape coordinates
+rot2LHB_H_WT <- rotmesh.onto(mesh = LHB_0003_H_R.ply, refmat = LHB_0003_H_R.lms, tarmat = LHB_H_WT_mean_shape, 
+                             scale = T, reflection = T)
+
+#do the same for KO
+rot2LHB_H_KO <- rotmesh.onto(mesh = LHB_0003_H_R.ply, refmat = LHB_0003_H_R.lms, tarmat = LHB_H_KO_mean_shape, 
+                             scale = T, reflection = T)
+
+#now extract mesh and coordinates from the rotation 
+LHB_H_WT.rot.mesh <- rot2LHB_H_WT$mesh
+LHB_H_WT.rot.lms <- rot2LHB_H_WT$yrot
+
+#same for KO 
+LHB_H_KO.rot.mesh <- rot2LHB_H_KO$mesh
+LHB_H_KO.rot.lms <- rot2LHB_H_KO$yrot
+
+#okay now use aligned coordinated to warp the reference mesh into group mean meshes
+#WT mean mesh 
+LHB_H_WT.mesh <- tps3d(x = LHB_H_WT.rot.mesh, refmat = LHB_H_WT.rot.lms, tarmat = LHB_H_WT_mean_shape)
+
+# plot (plot in different colors for each mean)
+
+plot3d(LHB_H_WT.mesh, col="#5AAE61", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#same for KO 
+LHB_H_KO.mesh <- tps3d(x = LHB_H_KO.rot.mesh, refmat = LHB_H_KO.rot.lms, tarmat = LHB_H_KO_mean_shape)
+
+# plot (plot in different colors for each mean)
+
+plot3d(LHB_H_KO.mesh, col="#A50026", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#hopefully now for deformation heat map pray for me 
+#WT to KO deformation heat map 
+
+par3d(zoom=0.9)
+meshDist(x = LHB_H_WT.mesh, mesh2 = LHB_H_KO.mesh, plot = T)
+
+#can't do wire frames and vector arrows between those because I need a .csv with two sets of numbers to link landmarks
+#maybe I make this in 3dslicer somehow 
+
+#can compute displacements between WT and KO landmarks
+
+LHB_H_displacements <- LHB_H_KO_mean_shape-LHB_H_WT_mean_shape
+LHB_H_WT_withdisplacements <- LHB_H_WT_mean_shape +LHB_H_displacements
+magnifier <- 7
+LHB_H_magmat <- LHB_H_displacements*magnifier
+#View(LHB_H_magmat)
+LHB_H_WT.mag <- LHB_H_WT_mean_shape + LHB_H_magmat
+
+plot3d(LHB_H_KO_mean_shape, col="#A50026", 
+       box = F, asp=F, axes = F, aspect = F,
+       xlab="",ylab="",zlab="")
+
+#Create an additional set of lines in blue to show the displacements calculated above
+for(i in 1:nrow(LHB_H_WT_mean_shape)){ #generate displacement vector lines 
+  lines3d(rbind(LHB_H_WT_mean_shape[i,], LHB_H_WT_withdisplacements[i,]),col="blue", lwd=2)
+}
+
