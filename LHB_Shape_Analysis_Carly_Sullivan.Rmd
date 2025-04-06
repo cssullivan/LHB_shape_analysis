@@ -41,9 +41,9 @@ library(dplyr)
 ## Loading data into R
 
 ```{r}
-forelimb.shape.data <- read.csv("experimental_FL_nohets.csv")  #read the csv data file that I sent to you with landmark data 
-hindlimb.shape.data <- read.csv("experimental_HL_nohets.csv")
-skull.shape.data <- read.csv("experimental_S_nohets.csv")
+forelimb.shape.data <- read.csv("ucalgary_2025_sullivan_carly_experimental_FL_nohets.csv")  #read the csv data file in my thesis supplementary files with landmark data 
+hindlimb.shape.data <- read.csv("ucalgary_2025_sullivan_carly_experimental_HL_nohets.csv")
+skull.shape.data <- read.csv("ucalgary_2025_sullivan_carly_experimental_S_nohets.csv")
 
 class(forelimb.shape.data)
 forelimb.shape.data.frame <- as.data.frame(forelimb.shape.data)
